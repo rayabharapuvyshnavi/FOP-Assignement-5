@@ -1,0 +1,11 @@
+# Ignore generated large binary used for mmap benchmarking
+images/4096x4096.bin
+
+# Ignore local build artifacts
+*.o
+cli
+test
+plot.png
+log-*.out
+valgrind.log
+fault.bin
