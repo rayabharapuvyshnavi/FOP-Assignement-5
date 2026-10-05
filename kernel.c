@@ -1,4 +1,5 @@
 #include "loader.h"
+#include <math.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -33,6 +34,57 @@ struct pixel add(struct pixel p1, struct pixel p2) {
  *
  */
 struct image* apply_kernel(struct image* img, int* kernel, int ksize, float normalize) {
+    if (img == NULL || kernel == NULL || ksize <= 0 || (ksize % 2) == 0) {
+        return NULL;
+    }
 
+    int radius = ksize / 2;
+    struct image* out = malloc(sizeof(struct image));
+    if (out == NULL) {
+        return NULL;
+    }
+
+    out->width = img->width;
+    out->height = img->height;
+    out->pixels = calloc((size_t)img->width * (size_t)img->height, sizeof(struct pixel));
+    if (out->pixels == NULL) {
+        free(out);
+        return NULL;
+    }
+
+    for (int y = 0; y < img->height; y++) {
+        for (int x = 0; x < img->width; x++) {
+            int sum_r = 0;
+            int sum_g = 0;
+            int sum_b = 0;
+
+            for (int ky = 0; ky < ksize; ky++) {
+                for (int kx = 0; kx < ksize; kx++) {
+                    int img_x = x + kx - radius;
+                    int img_y = y + ky - radius;
+                    struct pixel source = {0, 0, 0};
+
+                    if (img_x >= 0 && img_x < img->width && img_y >= 0 && img_y < img->height) {
+                        source = img->pixels[img_x + img_y * img->width];
+                    }
+
+                    int weight = kernel[ky * ksize + kx];
+                    sum_r += source.r * weight;
+                    sum_g += source.g * weight;
+                    sum_b += source.b * weight;
+                }
+            }
+
+            struct pixel result = {
+                .r = (int)lrintf((float)sum_r * normalize),
+                .g = (int)lrintf((float)sum_g * normalize),
+                .b = (int)lrintf((float)sum_b * normalize)
+            };
+
+            out->pixels[x + y * img->width] = result;
+        }
+    }
+
+    return out;
 }
 

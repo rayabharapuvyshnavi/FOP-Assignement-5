@@ -1,5 +1,7 @@
 #include "loader.h"
+#include <string.h>
 #include <sys/mman.h>
+#include <sys/stat.h>
 #include <errno.h>
 
 
@@ -27,7 +29,35 @@
  * Returns 0 on success, or -1 if the file cannot be opened or mapped.
  */
 int loadimage_mmap(char* filename, struct image* image) {
-	return 0;
+    int fd = open(filename, O_RDONLY);
+    if (fd == -1) {
+        return -1;
+    }
+
+    struct stat st;
+    if (fstat(fd, &st) == -1) {
+        close(fd);
+        return -1;
+    }
+
+    if (st.st_size < (off_t)sizeof(struct image)) {
+        close(fd);
+        return -1;
+    }
+
+    void* map = mmap(NULL, (size_t)st.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
+    if (map == MAP_FAILED) {
+        close(fd);
+        return -1;
+    }
+
+    struct image* header = (struct image*)map;
+    image->width = header->width;
+    image->height = header->height;
+    image->pixels = (struct pixel*)((char*)map + sizeof(struct image));
+
+    close(fd);
+    return 0;
 }
 
 /*
@@ -47,7 +77,44 @@ int loadimage_mmap(char* filename, struct image* image) {
  * A failed flush to disk is reported but still returns 0.
  */
 int saveimage_mmap(char* filename, struct image* image) {
-	return 0;
+    int fd = open(filename, O_RDWR | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+    if (fd == -1) {
+        return -1;
+    }
+
+    size_t pixel_count = (size_t)image->width * (size_t)image->height;
+    size_t file_size = sizeof(struct image) + pixel_count * sizeof(struct pixel);
+
+    if (ftruncate(fd, (off_t)file_size) == -1) {
+        close(fd);
+        return -1;
+    }
+
+    void* map = mmap(NULL, file_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    if (map == MAP_FAILED) {
+        close(fd);
+        return -1;
+    }
+
+    struct image* header = (struct image*)map;
+    memset(header, 0, sizeof(struct image));
+    header->width = image->width;
+    header->height = image->height;
+    header->pixels = (struct pixel*)((char*)map + sizeof(struct image));
+
+    memcpy(header->pixels, image->pixels, pixel_count * sizeof(struct pixel));
+
+    if (msync(map, file_size, MS_SYNC) == -1) {
+        /* best effort: a failed flush should not abort the save */
+    }
+
+    if (munmap(map, file_size) == -1) {
+        close(fd);
+        return -1;
+    }
+
+    close(fd);
+    return 0;
 }
 
 

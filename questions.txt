@@ -1,0 +1,7 @@
+(1) 404,324,352 bytes (394,848 KiB RSS from log-normal-1.out; 394,848 * 1024)
+
+(2) 404,414,464 bytes (394,936 KiB RSS from log-normal-5.out; 394,936 * 1024)
+
+(3) In the normal benchmark, each process allocates its own full image buffer and the RSS for a single instance climbs to about 395,000 KiB (~4.04e8 bytes). In the mmap benchmark, the image is shared through a memory-mapped file, so each process stays far lower (roughly tens of MiB instead of hundreds of MiB), and the graph is much flatter/stepped. The graph looks like that because the OS faults the shared pages in once, then reuses them across processes; the memory usage rises in bursts when different processes touch the same mapped data, rather than duplicating the entire image in every process. The mmap version also usually runs faster because it avoids repeated full-image allocations and reduces page-fault churn.
+
+(4) Minor page faults happen when a process accesses a page that is already mapped in memory but not currently present in the process’s page table or translation state; they are resolved in memory and usually do not require disk I/O. Major page faults require the kernel to read the missing page from backing storage (disk or swap), so they are much more expensive and usually indicate real page-in activity. In short, minor faults are cheap, major faults are expensive.
